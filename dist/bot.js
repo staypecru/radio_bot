@@ -10,6 +10,7 @@ const google_auth_library_1 = require("google-auth-library");
 const node_cron_1 = __importDefault(require("node-cron"));
 const stream_1 = require("stream");
 const express_1 = __importDefault(require("express"));
+const dotenv_1 = require("dotenv");
 const client = new discord_js_1.Client({
     intents: ["Guilds", "GuildVoiceStates"],
     makeCache: discord_js_1.Options.cacheWithLimits({
@@ -18,14 +19,15 @@ const client = new discord_js_1.Client({
         GuildMemberManager: 0,
     }),
 });
+(0, dotenv_1.config)();
 const player = (0, voice_1.createAudioPlayer)();
 const folderId = "16D-5og0WS7PYBxb1raeH0-rc1MzlQ-sF";
 const auth = new google_auth_library_1.GoogleAuth({
-    keyFile: "./service-account.json",
+    credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS || "{}"),
     scopes: ["https://www.googleapis.com/auth/drive.readonly"],
 });
 const drive = new v3_1.drive_v3.Drive({ auth });
-// HTTP-сервер для пинга
+// HTTP-server for pinging
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 3000;
 app.get("/", (req, res) => {
@@ -41,11 +43,11 @@ async function getFilesFromFolder() {
             fields: "files(id,name)",
         });
         const files = (res.data.files || []).filter((file) => file.id && file.name);
-        console.log(`Найдено файлов: ${files.length}`);
+        console.log(`Found files: ${files.length}`);
         return files.map((file) => ({ id: file.id, name: file.name }));
     }
     catch (error) {
-        console.error("Ошибка Google Drive API:", error.message);
+        console.error("Google Drive API error:", error.message);
         return [];
     }
 }
@@ -60,7 +62,7 @@ let dailyQueue = [];
 let index = 0;
 async function playNext() {
     if (index >= dailyQueue.length) {
-        console.log("Дневная очередь завершена.");
+        console.log("Daily queue completed.");
         return;
     }
     const track = dailyQueue[index];
@@ -73,10 +75,10 @@ async function playNext() {
     if (channel) {
         try {
             await channel.setName(newChannelName);
-            console.log(`Имя канала обновлено: ${newChannelName}`);
+            console.log(`Channel name updated: ${newChannelName}`);
         }
         catch (error) {
-            console.error("Ошибка обновления имени канала:", error.message);
+            console.error("Error updating channel name:", error.message);
         }
     }
     try {
@@ -155,4 +157,7 @@ client.once("ready", () => {
     else
         playMusic(channel);
 });
-client.login("MTM1MzY2NzY0OTk1OTM2NjY5OA.GlhFS3.UJvrNtwLrxvBMYbwbcPak5QUvDUN_J2bBXa2A8");
+const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
+client.login(DISCORD_TOKEN).catch((error) => {
+    console.error("Ошибка входа:", error);
+});

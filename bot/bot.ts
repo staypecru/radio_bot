@@ -12,6 +12,7 @@ import { GoogleAuth } from "google-auth-library";
 import cron from "node-cron";
 import { PassThrough } from "stream";
 import express from "express";
+import { config } from "dotenv"; 
 
 interface Track { id: string; name: string; }
 
@@ -23,6 +24,8 @@ const client = new Client({
     GuildMemberManager: 0,
   }),
 });
+config();
+
 
 const player = createAudioPlayer();
 const folderId = "16D-5og0WS7PYBxb1raeH0-rc1MzlQ-sF";
@@ -176,4 +179,6 @@ client.once("ready", () => {
 });
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
-client.login(DISCORD_TOKEN);
+client.login(DISCORD_TOKEN).catch((error) => {
+  console.error("Ошибка входа:", error);
+});
