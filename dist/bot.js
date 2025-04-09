@@ -61,6 +61,7 @@ let connection;
 let dailyQueue = [];
 let index = 0;
 async function playNext() {
+    console.log("Starting playNext function...");
     if (index >= dailyQueue.length) {
         console.log("Daily queue completed.");
         return;
@@ -74,6 +75,7 @@ async function playNext() {
         : null;
     if (channel) {
         try {
+            console.log("Attempting to update channel name...");
             await channel.setName(newChannelName);
             console.log(`Channel name updated: ${newChannelName}`);
         }
@@ -82,18 +84,26 @@ async function playNext() {
         }
     }
     try {
+        console.log("Fetching stream from Google Drive...");
         const response = await drive.files.get({ fileId: track.id, alt: "media" }, { responseType: "stream" });
+        console.log("Stream received from Google Drive");
         const inputStream = response.data;
-        // Увеличиваем буфер до 512 КБ
+        console.log("Creating buffer stream...");
         const bufferStream = new stream_1.PassThrough({ highWaterMark: 1024 * 1024 });
         inputStream.pipe(bufferStream);
+        console.log("Stream piped to buffer");
+        console.log("Creating audio resource...");
         const resource = (0, voice_1.createAudioResource)(bufferStream, {
             inlineVolume: true,
             inputType: voice_1.StreamType.Arbitrary,
         });
-        if (resource.volume)
+        console.log("Audio resource created");
+        if (resource.volume) {
             resource.volume.setVolume(1.0);
+            console.log("Volume set to 1.0");
+        }
         if (!connection || connection.state.status === "disconnected") {
+            console.log("No active connection, joining voice channel...");
             const channel = client.channels.cache.get("1344225046549368879");
             if (!channel)
                 throw new Error("Канал не найден");
@@ -104,10 +114,14 @@ async function playNext() {
                 selfMute: false,
                 selfDeaf: false,
             });
+            console.log("Voice channel joined");
         }
+        console.log("Subscribing player to connection...");
         const subscription = connection.subscribe(player);
         if (!subscription)
             throw new Error("Ошибка подписки");
+        console.log("Player subscribed");
+        console.log("Starting playback...");
         player.play(resource);
         console.log("Воспроизведение начато");
     }
@@ -132,12 +146,36 @@ async function playMusic(channel) {
         selfMute: false,
         selfDeaf: false,
     });
+    // Ожидание готовности соединения
     await new Promise((resolve) => {
         connection.on("stateChange", (oldState, newState) => {
             console.log(`Состояние соединения: ${newState.status}`);
             if (newState.status === "ready")
                 resolve();
         });
+    });
+    // Обработчик disconnect
+    connection.on("stateChange", async (oldState, newState) => {
+        if (newState.status === "disconnected") {
+            console.log("Соединение разорвано, перезапускаем воспроизведение...");
+            try {
+                // Уничтожаем старое соединение, если оно ещё существует
+                if (connection) {
+                    connection.destroy();
+                }
+                // Перезапускаем воспроизведение
+                const channel = client.channels.cache.get("1344225046549368879");
+                if (channel) {
+                    await playMusic(channel);
+                }
+                else {
+                    console.error("Канал не найден для переподключения");
+                }
+            }
+            catch (error) {
+                console.error("Ошибка при переподключении:", error);
+            }
+        }
     });
     dailyQueue = await getRandomTracks(20);
     index = 0;
